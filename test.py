@@ -72,7 +72,7 @@ def train_on_batch(x, y):
     return loss
 
 
-learning_rate = 1e-4
+alpha = 1e-4
 
 history = []
 for epoch in range(300):
@@ -81,7 +81,7 @@ for epoch in range(300):
     gradients = one_hot_actions-probs
     dr = discounted_rewards(rewards)
     gradients *= dr
-    delta = learning_rate * np.vstack([gradients])
+    delta = alpha * np.vstack([gradients])
     target = delta + probs
     train_on_batch(states, target)
     history.append(np.sum(rewards))
