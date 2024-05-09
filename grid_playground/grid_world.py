@@ -117,19 +117,24 @@ class GridWorldEnv(gym.Env):
         # Map the action (element of {0,1,2,3}) to the direction we walk in
         direction = self._action_to_direction[action]
         # We use `np.clip` to make sure we don't leave the grid
-        self._agent_location = np.clip(
+        temp_dir = np.clip(
             self._agent_location + direction, 0, self.size - 1
         )
+
         # An episode is done iff the agent has reached the target
         terminated = np.array_equal(
-            self._agent_location, self._target_location)
+            temp_dir, self._target_location)
 
-        if self._level[self._agent_location[0]][self._agent_location[1]] == 1:
-            reward = -10
-        elif terminated:
-            reward = 100
+        if self._level[temp_dir[0]][temp_dir[1]] == 1:
+            reward = -1
         else:
-            reward = 0
+            if terminated:
+                reward = 5
+            else:
+                reward = 0
+            self._agent_location = temp_dir
+
+        
         observation = self._get_obs()
         info = self._get_info()
 
