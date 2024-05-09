@@ -64,9 +64,9 @@ def play_until_lose(max_steps_per_episode=10000):
         probs.append(action_probs.detach().cpu().numpy())
         rewards.append(reward)
         state = nstate
-        # print(state)
         if done:
-            print(k, 'times')
+            print(k, 'times', np.sum(rewards))
+            
             break
     return np.stack(states), np.vstack(actions), np.vstack(probs), np.vstack(rewards)
 
@@ -85,7 +85,7 @@ def discounted_rewards(rewards, gamma=0.99, normalize=True):
     return ret
 
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
 def train_on_batch(x, y):
@@ -112,7 +112,7 @@ for epoch in range(600):
     states, actions, probs, rewards = play_until_lose()
     one_hot_actions = np.eye(num_actions)[actions.T][0]
     gradients = one_hot_actions-probs
-    dr = discounted_rewards(rewards)
+    dr = discounted_rewards(rewards, normalize=True)
     gradients *= dr
     delta = alpha * np.vstack([gradients])
     target = delta + probs
