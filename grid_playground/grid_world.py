@@ -7,7 +7,7 @@ import numpy as np
 class GridWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self, render_mode=None, size=5):
+    def __init__(self, render_mode=None, size=8):
         self.size = size  # The size of the square grid
         self.window_size = 512  # The size of the PyGame window
 
@@ -49,7 +49,10 @@ class GridWorldEnv(gym.Env):
         self.clock = None
 
     def _get_obs(self):
-        return {"agent": self._agent_location, "target": self._target_location, "level": self._level}
+        current_level = np.copy(self._level)
+        current_level[self._agent_location[0]][self._agent_location[1]] = 2
+        current_level[self._target_location[0]][self._target_location[1]] = 3
+        return {"agent": self._agent_location, "target": self._target_location, "level": current_level}
 
     def _get_info(self):
         return {
@@ -62,27 +65,45 @@ class GridWorldEnv(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
 
-        # Choose the agent's location uniformly at random
-        self._agent_location = self.np_random.integers(
-            0, self.size, size=2, dtype=int)
+        self._level = np.array([
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1],
+        ])
 
-        self._level = [
-            [1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 3, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 2, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1],
-        ]
+        self._agent_location = self.np_random.integers(
+            0, self.size, size=2, dtype=int
+        )
+
+        level_coords = self._level[self._agent_location[0]
+                                   ][self._agent_location[1]]
+
+        # While it spawned on a wall
+        while level_coords != 0:
+            self._agent_location = self.np_random.integers(
+                0, self.size, size=2, dtype=int
+            )
+            level_coords = self._level[self._agent_location[0]
+                                       ][self._agent_location[1]]
 
         # We will sample the target's location randomly until it does not coincide with the agent's location
-        self._target_location = self._agent_location
-        while np.array_equal(self._target_location, self._agent_location):
+        self._target_location = self.np_random.integers(
+            0, self.size, size=2, dtype=int
+        )
+
+        level_coords = self._level[self._target_location[0]
+                                   ][self._target_location[1]]
+        while np.array_equal(self._target_location, self._agent_location) or level_coords != 0:
             self._target_location = self.np_random.integers(
                 0, self.size, size=2, dtype=int
             )
+            level_coords = self._level[self._target_location[0]
+                                       ][self._target_location[1]]
 
         observation = self._get_obs()
         info = self._get_info()
@@ -102,7 +123,13 @@ class GridWorldEnv(gym.Env):
         # An episode is done iff the agent has reached the target
         terminated = np.array_equal(
             self._agent_location, self._target_location)
-        reward = 1 if terminated else 0  # Binary sparse rewards
+
+        if self._level[self._agent_location[0]][self._agent_location[1]] == 1:
+            reward = -10
+        elif terminated:
+            reward = 100
+        else:
+            reward = 0
         observation = self._get_obs()
         info = self._get_info()
 

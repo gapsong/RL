@@ -2,38 +2,45 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-from grid_world import GridWorldEnv, MAPS
+import torch.nn.functional as F
+from grid_world import GridWorldEnv
 
 num_inputs = 4
 num_actions = 4
 
 
 class GridWorldModel(nn.Module):
-    def __init__(self, grid_size, output_size):
+    def __init__(self, input_channels, output_size):
         super(GridWorldModel, self).__init__()
-        # Input layer the world
-        self.fc1 = nn.Linear(2 * 2, 128)
-        self.fc2 = nn.Linear(128, 128)    # Hidden layer
-        self.fc3 = nn.Linear(128, output_size)  # Output layer
+        # Define convolutional layers
+        # Example: 32 filters, 3x3 kernel
+        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)
+        # Example: 64 filters, 3x3 kernel
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        # Example of an Adaptive Pooling layer to make sure the output is a fixed size
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # Fully connected layer
+        # Assuming the last conv layer outputs 64 channels
+        self.fc = nn.Linear(64, output_size)
 
     def forward(self, x):
-        x = torch.F.relu(self.fc1(x))  # Activation function ReLU
-        x = torch.F.relu(self.fc2(x))  # Activation function ReLU
-        x = self.fc3(x)
+        x = F.relu(self.conv1(x))  # Apply ReLU after first conv layer
+        x = F.relu(self.conv2(x))  # Apply ReLU after second conv layer
+        x = self.adaptive_pool(x)  # Adaptive pooling to reduce to 1x1
+        x = x.squeeze()
+        # Flatten the tensor for the fully connected layer
+        x = self.fc(x)  # Output layer
+        x = F.softmax(x, dim=0)
+
         return x
 
 
-model = torch.nn.Sequential(
-    torch.nn.Linear(num_inputs, 128, bias=False, dtype=torch.float32),
-    torch.nn.ReLU(),
-    torch.nn.Linear(128, num_actions, bias=False, dtype=torch.float32),
-    torch.nn.Softmax(dim=1)
-)
+model = GridWorldModel(input_channels=1, output_size=4)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
 # Create the CartPole environment
-env = GridWorldEnv(obstacle_map=MAPS['4x4'], render_mode="human")
+env = GridWorldEnv()
 print(f"Action space: {env.action_space}")
 print(f"Observation space: {env.observation_space}")
 # Initialize the environment and get the initial observation
@@ -41,24 +48,27 @@ print(f"Observation space: {env.observation_space}")
 
 def play_until_lose(max_steps_per_episode=10000):
     states, actions, probs, rewards = [], [], [], []
-    state = env.reset()
+    state = env.reset()[0]
     for k in range(max_steps_per_episode):
-        input_tensor = torch.cat(
-            (state.agent, state.target)).float().unsqueeze(0)  # Prepare input
+        level = state['level']
+        input_tensor = torch.tensor(level).type(torch.float32)
+        input_tensor = input_tensor.unsqueeze(0)
         input_tensor.to(device)
         action_probs = model(input_tensor)
+
         action = np.random.choice(
             num_actions, p=np.squeeze(action_probs.detach().cpu().numpy()))
         nstate, reward, done, info, random = env.step(action)
-        if done:
-            print(k, 'times')
-            break
-        states.append(state)
+        states.append(level)
         actions.append(action)
         probs.append(action_probs.detach().cpu().numpy())
         rewards.append(reward)
         state = nstate
-    return np.vstack(states), np.vstack(actions), np.vstack(probs), np.vstack(rewards)
+        # print(state)
+        if done:
+            print(k, 'times')
+            break
+    return np.stack(states), np.vstack(actions), np.vstack(probs), np.vstack(rewards)
 
 
 eps = 0.0001
@@ -79,11 +89,16 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
 
 def train_on_batch(x, y):
-    # ist ein Batch von meinen verschiedenen steps
+    # istrain_on_batcht ein Batch von meinen verschiedenen steps
     x = torch.from_numpy(x).to(device)
     y = torch.from_numpy(y).to(device)
     optimizer.zero_grad()
-    predictions = model(x)
+
+    input_tensor = x.clone().detach().type(torch.float32)
+    input_tensor = input_tensor.unsqueeze(1)
+    input_tensor.to(device)
+
+    predictions = model(input_tensor)
     loss = -torch.mean(torch.log(predictions) * y)
     loss.backward()
     optimizer.step()
@@ -93,9 +108,9 @@ def train_on_batch(x, y):
 alpha = 1e-4
 
 history = []
-for epoch in range(300):
+for epoch in range(600):
     states, actions, probs, rewards = play_until_lose()
-    one_hot_actions = np.eye(2)[actions.T][0]
+    one_hot_actions = np.eye(num_actions)[actions.T][0]
     gradients = one_hot_actions-probs
     dr = discounted_rewards(rewards)
     gradients *= dr
