@@ -4,6 +4,26 @@ import pygame
 import numpy as np
 
 
+MAPS = {
+    '8x8': np.array([
+        [1, 1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1, 1],
+    ]),
+    '5x5': np.array([
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1],
+    ])}
+
+
 class GridWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
@@ -24,7 +44,7 @@ class GridWorldEnv(gym.Env):
         self.action_space = spaces.Discrete(4)
 
         """
-        The following dictionary maps abstract actions from `self.action_space` to 
+        The following dictionary maps abstract actions from `self.action_space` to
         the direction we will walk in if that action is taken.
         I.e. 0 corresponds to "right", 1 to "up" etc.
         """
@@ -48,6 +68,9 @@ class GridWorldEnv(gym.Env):
         self.window = None
         self.clock = None
 
+        self._level = MAPS['5x5']
+        self.size = len(self._level[0])
+
     def _get_obs(self):
         current_level = np.copy(self._level)
         current_level[self._agent_location[0]][self._agent_location[1]] = 2
@@ -65,16 +88,8 @@ class GridWorldEnv(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
 
-        self._level = np.array([
-            [1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1],
-        ])
+        self._level = MAPS['5x5']
+        self.size = len(self._level[0])
 
         self._agent_location = self.np_random.integers(
             0, self.size, size=2, dtype=int
@@ -134,7 +149,6 @@ class GridWorldEnv(gym.Env):
                 reward = 0
             self._agent_location = temp_dir
 
-        
         observation = self._get_obs()
         info = self._get_info()
 

@@ -46,14 +46,14 @@ print(f"Observation space: {env.observation_space}")
 # Initialize the environment and get the initial observation
 
 
-def play_until_lose(max_steps_per_episode=10000):
+def play_until_lose(max_steps_per_episode, device):
     states, actions, probs, rewards = [], [], [], []
     state = env.reset()[0]
     for k in range(max_steps_per_episode):
         level = state['level']
         input_tensor = torch.tensor(level).type(torch.float32)
-        input_tensor = input_tensor.unsqueeze(0)
-        input_tensor.to(device)
+        input_tensor = input_tensor.unsqueeze(0).to(device)
+
         action_probs = model(input_tensor)
 
         action = np.random.choice(
@@ -66,7 +66,7 @@ def play_until_lose(max_steps_per_episode=10000):
         state = nstate
         if done:
             print(k, 'times', np.sum(rewards))
-            
+
             break
     return np.stack(states), np.vstack(actions), np.vstack(probs), np.vstack(rewards)
 
@@ -88,7 +88,7 @@ def discounted_rewards(rewards, gamma=0.99, normalize=True):
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
-def train_on_batch(x, y):
+def train_on_batch(x, y, device):
     # istrain_on_batcht ein Batch von meinen verschiedenen steps
     x = torch.from_numpy(x).to(device)
     y = torch.from_numpy(y).to(device)
@@ -96,7 +96,7 @@ def train_on_batch(x, y):
 
     input_tensor = x.clone().detach().type(torch.float32)
     input_tensor = input_tensor.unsqueeze(1)
-    input_tensor.to(device)
+    input_tensor = torch.tensor(input_tensor)
 
     predictions = model(input_tensor)
     loss = -torch.mean(torch.log(predictions) * y)
@@ -109,19 +109,18 @@ alpha = 1e-4
 
 history = []
 for epoch in range(600):
-    states, actions, probs, rewards = play_until_lose()
+    states, actions, probs, rewards = play_until_lose(
+        max_steps_per_episode=10000, device=device)
     one_hot_actions = np.eye(num_actions)[actions.T][0]
     gradients = one_hot_actions-probs
     dr = discounted_rewards(rewards, normalize=True)
     gradients *= dr
     delta = alpha * np.vstack([gradients])
     target = delta + probs
-    train_on_batch(states, target)
+    train_on_batch(states, target, device)
     history.append(np.sum(rewards))
     if epoch % 100 == 0:
         print(f"{epoch} -> {np.sum(rewards)}")
 
 plt.plot(history)
-
-
-_ = play_until_lose()
+print('end')
