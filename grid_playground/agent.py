@@ -12,30 +12,18 @@ num_actions = 4
 class GridWorldModel(nn.Module):
     def __init__(self, input_channels, output_size):
         super(GridWorldModel, self).__init__()
-        # Define convolutional layers
-        # Example: 32 filters, 3x3 kernel
-        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)
-        # Example: 64 filters, 3x3 kernel
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        # Example of an Adaptive Pooling layer to make sure the output is a fixed size
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
-        # Fully connected layer
-        # Assuming the last conv layer outputs 64 channels
-        self.fc = nn.Linear(64, output_size)
+        self.fc1 = nn.Linear(input_channels, 64)
+        self.fc2 = nn.Linear(64, output_size)
+        self.input_channels = input_channels
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))  # Apply ReLU after first conv layer
-        x = F.relu(self.conv2(x))  # Apply ReLU after second conv layer
-        x = self.adaptive_pool(x)  # Adaptive pooling to reduce to 1x1
-        x = x.squeeze()
-        # Flatten the tensor for the fully connected layer
-        x = self.fc(x)  # Output layer
-        x = F.softmax(x, dim=0)
-
+        # x = x.view(-1, self.input_channels)  # -1 for batch size, which PyTorch infers automatically.
+        x = F.relu(self.fc1(x))
+        x = F.softmax(self.fc2(x), dim=0)
         return x
 
 
-model = GridWorldModel(input_channels=1, output_size=4)
+model = GridWorldModel(input_channels=150, output_size=4)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
@@ -51,10 +39,10 @@ def play_until_lose(max_steps_per_episode, device):
     state = env.reset()[0]
     for k in range(max_steps_per_episode):
         level = state['level']
-        input_tensor = torch.tensor(level).type(torch.float32)
-        input_tensor = input_tensor.unsqueeze(0).to(device)
+        one_hot_input_tensor = F.one_hot(torch.tensor(level), num_classes=6)
+        input_tensor = torch.tensor(one_hot_input_tensor).type(torch.float32)
 
-        action_probs = model(input_tensor)
+        action_probs = model(input_tensor.flatten())
 
         action = np.random.choice(
             num_actions, p=np.squeeze(action_probs.detach().cpu().numpy()))
@@ -94,11 +82,13 @@ def train_on_batch(x, y, device):
     y = torch.from_numpy(y).to(device)
     optimizer.zero_grad()
 
-    input_tensor = x.clone().detach().type(torch.float32)
-    input_tensor = input_tensor.unsqueeze(1)
-    input_tensor = torch.tensor(input_tensor)
+    # input_tensor = x.clone().detach().type(torch.float32)
+    # input_tensor = torch.tensor(input_tensor)
 
-    predictions = model(input_tensor)
+    one_hot_input_tensor = F.one_hot(torch.tensor(x.clone().detach()), num_classes=6)
+    input_tensor = torch.tensor(one_hot_input_tensor).type(torch.float32)
+
+    predictions = model(input_tensor.flatten(start_dim=1, end_dim=-1))
     loss = -torch.mean(torch.log(predictions) * y)
     loss.backward()
     optimizer.step()
@@ -108,7 +98,7 @@ def train_on_batch(x, y, device):
 alpha = 1e-4
 
 history = []
-for epoch in range(600):
+for epoch in range(10000):
     states, actions, probs, rewards = play_until_lose(
         max_steps_per_episode=10000, device=device)
     one_hot_actions = np.eye(num_actions)[actions.T][0]
@@ -122,5 +112,8 @@ for epoch in range(600):
     if epoch % 100 == 0:
         print(f"{epoch} -> {np.sum(rewards)}")
 
+plt.ion()
 plt.plot(history)
+plt.savefig('savedfig.png')
+plt.show()  # Necessary in scripts
 print('end')
