@@ -25,8 +25,6 @@ MAPS = {
 
 
 class GridWorldEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
-
     def __init__(self):
         self._level = MAPS['5x5']
         self.size = len(self._level[0])
