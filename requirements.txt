@@ -3,3 +3,6 @@ numpy
 matplotlib
 torch
 pygame
+seaborn
+pandas
+tqdm

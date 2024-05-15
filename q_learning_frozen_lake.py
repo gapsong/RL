@@ -36,7 +36,7 @@ class Params(NamedTuple):
 
 
 params = Params(
-    total_episodes=2000,
+    total_episodes=8000,
     learning_rate=0.8,
     gamma=0.95,
     epsilon=0.1,
@@ -265,7 +265,7 @@ def plot_states_actions_distribution(states, actions, map_size):
     plt.show()
 
 
-map_sizes = [4, 7, 9, 11]
+map_sizes = [4]
 res_all = pd.DataFrame()
 st_all = pd.DataFrame()
 
