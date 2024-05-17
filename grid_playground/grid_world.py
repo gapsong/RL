@@ -16,11 +16,11 @@ MAPS = {
         [1, 1, 1, 1, 1, 1, 1, 1],
     ]),
     '5x5': np.array([
-        [1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1],
-        [1, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
     ])}
 
 
@@ -41,6 +41,7 @@ class GridWorldEnv(gym.Env):
             2: np.array([-1, 0]),
             3: np.array([0, -1]),
         }
+        self._initialized = False
 
     def _get_obs(self):
         current_level = np.copy(self._level)
@@ -56,44 +57,19 @@ class GridWorldEnv(gym.Env):
         }
 
     def reset(self, seed=None):
-        # We need the following line to seed self.np_random
-        super().reset(seed=seed)
+        # The positions are fixed, set them only once
+        if not self._initialized:
+            super().reset(seed=seed)
+            self._agent_location = self._sample_location()
+            self._target_location = self._sample_location(exclude=self._agent_location)
+            self._initial_agent_location = self._agent_location.copy()
+            self._initial_target_location = self._target_location.copy()
+            self._initialized = True
+        else:
+            self._agent_location = self._initial_agent_location
+            self._target_location = self._initial_target_location
 
-        self._level = MAPS['5x5']
-        self.size = len(self._level[0])
-
-        self._agent_location = self.np_random.integers(
-            0, self.size, size=2, dtype=int
-        )
-
-        level_coords = self._level[self._agent_location[0]
-                                   ][self._agent_location[1]]
-
-        # While it spawned on a wall
-        while level_coords != 0:
-            self._agent_location = self.np_random.integers(
-                0, self.size, size=2, dtype=int
-            )
-            level_coords = self._level[self._agent_location[0]
-                                       ][self._agent_location[1]]
-
-        # We will sample the target's location randomly until it does not coincide with the agent's location
-        self._target_location = self.np_random.integers(
-            0, self.size, size=2, dtype=int
-        )
-
-        level_coords = self._level[self._target_location[0]
-                                   ][self._target_location[1]]
-        while np.array_equal(self._target_location, self._agent_location) or level_coords != 0:
-            self._target_location = self.np_random.integers(
-                0, self.size, size=2, dtype=int
-            )
-            level_coords = self._level[self._target_location[0]
-                                       ][self._target_location[1]]
-
-        observation = self._get_obs()
-        info = self._get_info()
-        return observation, info
+        return self._get_obs(), self._get_info()
 
     def step(self, action):
         # Map the action (element of {0,1,2,3}) to the direction we walk in
@@ -108,7 +84,7 @@ class GridWorldEnv(gym.Env):
             temp_dir, self._target_location)
 
         if self._level[temp_dir[0]][temp_dir[1]] == 1:
-            reward = -1
+            reward = 0
         else:
             if terminated:
                 reward = 5
@@ -120,3 +96,9 @@ class GridWorldEnv(gym.Env):
         info = self._get_info()
 
         return observation, reward, terminated, False, info
+
+    def _sample_location(self, exclude=None):
+        location = self.np_random.integers(0, self.size, size=2, dtype=int)
+        while self._level[location[0]][location[1]] != 0 or (exclude is not None and np.array_equal(location, exclude)):
+            location = self.np_random.integers(0, self.size, size=2, dtype=int)
+        return location

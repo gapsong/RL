@@ -1,68 +1,81 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from grid_world import GridWorldEnv
 
-# Q-learning Agent
-class QLearningAgent:
-    def __init__(self, state_size, action_size, learning_rate=0.1, gamma=0.99, epsilon=0.1):
-        self.state_size = state_size
-        self.action_size = action_size
-        self.learning_rate = learning_rate
-        self.gamma = gamma
-        self.epsilon = epsilon
-        self.q_table = np.zeros((state_size, state_size, action_size))
+epsilon = 0.3
+q_table = np.zeros((5 * 5, 4))
+env = GridWorldEnv()
+observation, info = env.reset()
+alpha = 0.1
+gamma = 0.1
+done = False
+state = observation["agent"][0] * 5 + observation["agent"][1]  # current state
+num_episodes = 100
+initial_agent_pos = observation["agent"]
+initial_target_pos = observation["target"]
 
-    def choose_action(self, state):
-        if random.uniform(0, 1) < self.epsilon:
-            return random.choice(range(self.action_size))  # Exploration
-        else:
-            x, y = state
-            return np.argmax(self.q_table[x, y])  # Exploitation
 
-    def learn(self, state, action, reward, next_state):
-        x, y = state
-        next_x, next_y = next_state
-        best_next_action = np.argmax(self.q_table[next_x, next_y])
-        td_target = reward + self.gamma * self.q_table[next_x, next_y, best_next_action]
-        td_error = td_target - self.q_table[x, y, action]
-        self.q_table[x, y, action] += self.learning_rate * td_error
+def sample_action(state):
+    if random.uniform(0, 1) < epsilon:
+        return env.action_space.sample()  # Explore
+    return np.argmax(q_table[state])  # Exploit
 
-# Main training loop
-def train(env, agent, episodes):
-    rewards = []
-    for episode in range(episodes):
-        state = env.reset()
-        total_reward = 0
-        done = False
-        while not done:
-            action = agent.choose_action(state)
-            next_state, reward, done = env.step(action)
-            agent.learn(state, action, reward, next_state)
-            state = next_state
-            total_reward += reward
-        rewards.append(total_reward)
-        if episode % 100 == 0:
-            print(f"Episode {episode}/{episodes} - Total Reward: {total_reward}")
-    return rewards
 
-# Initialize environment and agent
-size = 5
-start = (0, 0)
-goal = (4, 4)
-obstacles = [(1, 1), (2, 2), (3, 3)]
-env = GridEnvironment(size, start, goal, obstacles)
-agent = QLearningAgent(state_size=size, action_size=4)
+print(env._get_obs())
 
-# Train the agent
-episodes = 1000
-rewards = train(env, agent, episodes)
+for episode in range(num_episodes):
+    obs, _ = env.reset()
+    state = obs['agent'][0] * env.size + obs['agent'][1]
+    done = False
 
-# Plot rewards
-plt.plot(rewards)
-plt.xlabel('Episode')
-plt.ylabel('Total Reward')
-plt.show()
+    while not done:
+        next_action = sample_action(state)
+        observation, reward, terminated, truncated, info = env.step(
+            next_action)
+        next_state = observation["agent"][0] * 5 + observation["agent"][1]
+        best_next_action = np.argmax(q_table[next_state])
+        future_action = reward + gamma * q_table[next_state][best_next_action]
+        q_table[state][next_action] += alpha * \
+            (future_action - q_table[state][next_action])
+        state = next_state
+        done = terminated or truncated
 
-# Render the final policy
-env.reset()
-env.render()
+
+print(env._get_obs())
+for state in range(5 * 5):
+    print(f"State {state}: {np.round(q_table[state], 2)}")
+
+
+def plot_action_grid(q_table, grid_size, start_pos, end_pos):
+    action_grid = np.argmax(q_table, axis=1).reshape(grid_size, grid_size)
+    
+    # Create a colormap for the actions
+    cmap = plt.get_cmap('viridis', 4)
+    
+    # Plot the grid
+    plt.figure(figsize=(8, 8))
+    plt.imshow(action_grid, cmap=cmap, origin='upper')
+    
+    # Add colorbar
+    cbar = plt.colorbar(ticks=[0, 1, 2, 3])
+    cbar.ax.set_yticklabels(['Down', 'Right', 'Up', 'Left'])
+    
+    # Add gridlines
+    plt.grid(which='both', color='black', linestyle='-', linewidth=2)
+    plt.xticks(np.arange(-.5, grid_size, 1), [])
+    plt.yticks(np.arange(-.5, grid_size, 1), [])
+    
+    # Mark the starting and ending positions
+    plt.scatter(start_pos[1], start_pos[0], color='red', s=200, marker='X', label='Start')
+    plt.scatter(end_pos[1], end_pos[0], color='blue', s=200, marker='o', label='End')
+    
+    # Add legend
+    plt.legend(loc='upper right')
+    
+    plt.title('Actions Taken in Each State')
+    plt.savefig('action_grid.png')  # Save the plot as an image file
+    plt.show()
+
+# Plot the action grid with the initial starting and ending positions
+plot_action_grid(q_table, 5, initial_agent_pos, initial_target_pos)
