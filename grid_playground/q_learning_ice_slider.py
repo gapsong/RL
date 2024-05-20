@@ -1,7 +1,10 @@
 import numpy as np
 import random
+import matplotlib
 import matplotlib.pyplot as plt
 from grid_world import GridWorldEnv
+
+matplotlib.use('Qt5Agg')
 
 epsilon = 0.3
 q_table = np.zeros((5 * 5, 4))
@@ -43,6 +46,7 @@ for episode in range(num_episodes):
 
 
 print(env._get_obs())
+
 for state in range(5 * 5):
     print(f"State {state}: {np.round(q_table[state], 2)}")
 
