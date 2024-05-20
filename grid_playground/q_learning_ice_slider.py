@@ -14,7 +14,7 @@ alpha = 0.1
 gamma = 0.1
 done = False
 state = observation["agent"][0] * 5 + observation["agent"][1]  # current state
-num_episodes = 100
+num_episodes = 10000
 initial_agent_pos = observation["agent"]
 initial_target_pos = observation["target"]
 

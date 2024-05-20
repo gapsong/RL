@@ -89,7 +89,7 @@ class GridWorldEnv(gym.Env):
             if terminated:
                 reward = 5
             else:
-                reward = 0
+                reward = -0.1
             self._agent_location = temp_dir
 
         observation = self._get_obs()
